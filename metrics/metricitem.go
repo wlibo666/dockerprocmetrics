@@ -184,6 +184,21 @@ func WriteAllMetricsData(writer io.Writer, args map[string]string) error {
 	return nil
 }
 
+func GetAllMetricsData(args map[string]string) string {
+	var allData string
+	for _, item := range metricsItem {
+		data, err := item.Func(args)
+		if err != nil {
+			continue
+		}
+		if len(data) > 0 {
+			allData += item.Comment
+			allData += data
+		}
+	}
+	return allData
+}
+
 func init() {
 	AddMetricItem(NODE_SYS_CPU_USAGE_RATE, node_sys_cpu_usage_rate_comment, SysCpuUsageRateMetric)
 	AddMetricItem(NODE_SYS_MEM_USAGE, node_sys_mem_usage_comment, SysMemUsageMetric)

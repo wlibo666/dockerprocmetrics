@@ -98,7 +98,7 @@ func StoreContainerInfoById(id string) error {
 }
 
 func StorePidsByContainerId(id string) error {
-	body, err := DefaultDockerClient.ContainerTop(context.Background(), id, []string{"-opid"})
+	body, err := DefaultDockerClient.ContainerTop(context.Background(), id, []string{})
 	if err != nil {
 		log.DefFileLogger.WithFields(logrus.Fields{
 			"containerId": id,
@@ -111,7 +111,7 @@ func StorePidsByContainerId(id string) error {
 	ContainerPidNum.Store(id, pidNum)
 
 	for _, pids := range body.Processes {
-		pid := pids[0]
+		pid := pids[1]
 		log.DefFileLogger.WithFields(logrus.Fields{
 			"containerId": id,
 			"pid":         pid,
