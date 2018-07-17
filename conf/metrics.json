@@ -1,0 +1,8 @@
+{
+  "dockerDaemonSock":"unix:///var/run/docker.sock",
+  "dockerApiVersion":"1.37",
+
+  "monitorItems":["cpu","memory"],
+  "frequency": 1,
+  "listenAddr": ":3280"
+}
