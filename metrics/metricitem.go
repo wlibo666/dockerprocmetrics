@@ -69,8 +69,8 @@ func SysMemUsageMetric(args map[string]string) (string, error) {
 	buff := bytes.NewBuffer(data)
 
 	minfo := procinfo.GetMemInfo()
-	itemData := fmt.Sprintf("%s{%s,free=\"%d\",avaliable=\"%d\"} %d\n",
-		NODE_SYS_MEM_USAGE, container.HostLabels, minfo.Free, minfo.Available, minfo.Total-minfo.Available)
+	itemData := fmt.Sprintf("%s{%s} %d\n",
+		NODE_SYS_MEM_USAGE, container.HostLabels, minfo.Total-minfo.Available)
 	buff.Write([]byte(itemData))
 	return buff.String(), nil
 }

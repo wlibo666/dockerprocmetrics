@@ -17,12 +17,33 @@ var (
 	GMertricConfig *MetricConfig
 )
 
+type DockerConfig struct {
+	DaemonSock string `json:"daemonSock"`
+	ApiVersion string `json:"apiVersion"`
+}
+
+type MonitorConfig struct {
+	Items     []string `json:"items"`
+	Frequency int      `json:"frequency"`
+}
+
+type ListenConfig struct {
+	Addr    string `json:"addr"`
+	Port    int    `json:"port"`
+	WanName string `json:"wanName"`
+}
+
+type ConsulRegisterConfig struct {
+	Addr        string `json:"addr"`
+	Dc          string `json:"dc"`
+	ServiceName string `json:"serviceName"`
+}
+
 type MetricConfig struct {
-	DockerDaemonSock string   `json:"dockerDaemonSock"`
-	DockerApiVersion string   `json:"dockerApiVersion"`
-	MonitorItems     []string `json:"monitorItems"`
-	Frequency        int      `json:"frequency"`
-	ListenAddr       string   `json:"listenAddr"`
+	Docker    DockerConfig         `json:"docker"`
+	Monitor   MonitorConfig        `json:"monitor"`
+	Listen    ListenConfig         `json:"listen"`
+	ConsulReg ConsulRegisterConfig `json:"consulRegister"`
 }
 
 func LoadConfig(filename string) error {
@@ -38,18 +59,16 @@ func LoadConfig(filename string) error {
 }
 
 func (config *MetricConfig) check() error {
-	if config.DockerDaemonSock == "" {
-		config.DockerDaemonSock = DEFAULT_DOCKER_DAEMON_SOCK
+	if config.Docker.DaemonSock == "" {
+		config.Docker.DaemonSock = DEFAULT_DOCKER_DAEMON_SOCK
 	}
-	if config.Frequency <= 0 {
-		config.Frequency = DEFAULT_FREQUENCY
+	if config.Monitor.Frequency <= 0 {
+		config.Monitor.Frequency = DEFAULT_FREQUENCY
 	}
-	if len(config.MonitorItems) == 0 {
-		config.MonitorItems = append(config.MonitorItems, MONITOR_CPU)
-		config.MonitorItems = append(config.MonitorItems, MONITOR_MEMORY)
+	if len(config.Monitor.Items) == 0 {
+		config.Monitor.Items = append(config.Monitor.Items, MONITOR_CPU)
+		config.Monitor.Items = append(config.Monitor.Items, MONITOR_MEMORY)
 	}
-	if config.ListenAddr == "" {
-		config.ListenAddr = DEFAULT_LISTEN_ADDR
-	}
+
 	return nil
 }

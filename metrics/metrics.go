@@ -13,25 +13,21 @@ func Run() error {
 	container.InitHostLabels()
 
 	// 初始化docker客户端
-	err := container.NewDefaultDockerClient(config.GMertricConfig.DockerDaemonSock, config.GMertricConfig.DockerApiVersion)
+	err := container.NewDefaultDockerClient(config.GMertricConfig.Docker.DaemonSock, config.GMertricConfig.Docker.ApiVersion)
 	if err != nil {
 		log.DefFileLogger.WithFields(logrus.Fields{
-			"apiversion": config.GMertricConfig.DockerApiVersion,
-			"host":       config.GMertricConfig.DockerDaemonSock,
+			"apiversion": config.GMertricConfig.Docker.ApiVersion,
+			"host":       config.GMertricConfig.Docker.DaemonSock,
+			"position":   utils.GetFileAndLine(),
 			"error":      err.Error(),
 		}).Error("NewDefaultDockerClient failed, will exit with code 3")
 		utils.ExitWaitDef(10)
 	}
 	// 检测daemon是否存活
-	go container.DefaultDockerClientCheck(config.GMertricConfig.DockerDaemonSock, config.GMertricConfig.DockerApiVersion)
+	go container.DefaultDockerClientCheck(config.GMertricConfig.Docker.DaemonSock, config.GMertricConfig.Docker.ApiVersion)
 	// 从docker daemon获取容器信息和容器内PID
-	err = container.StoreContainerInfoAndPid()
-	if err != nil {
-		log.DefFileLogger.WithFields(logrus.Fields{
-			"error": err.Error(),
-		}).Error("StoreContainerInfoAndPid failed")
-		return err
-	}
+	go container.StoreContainerInfoAndPid()
+	// 处理容器事件
 	go container.HandleDockerEvent()
 	return nil
 }

@@ -1,7 +1,6 @@
 package container
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -11,6 +10,7 @@ import (
 	"github.com/Sirupsen/logrus"
 	"github.com/docker/docker/api/types"
 	log "github.com/wlibo666/common-lib/logrus"
+	"github.com/wlibo666/dockerprocmetrics/utils"
 	procpid "github.com/wlibo666/procinfo/pid"
 )
 
@@ -35,6 +35,13 @@ func DelContainerInfoById(id string) {
 	}
 }
 
+func handleContainerError(id string, err error) {
+	if strings.Contains(err.Error(), "is not running") {
+		ContainerInfos.Delete(id)
+		ContainerPidNum.Delete(id)
+	}
+}
+
 func StoreContainerInfoById(id string) error {
 	// 如果已经保存,则不需要更改信息
 	_, ok := ContainerInfos.Load(id)
@@ -45,17 +52,19 @@ func StoreContainerInfoById(id string) error {
 		Labels: make(map[string]string),
 	}
 	// 获取单个容器信息
-	info, err := DefaultDockerClient.ContainerInspect(context.Background(), id)
+	client := NewDockerClient()
+	defer client.Close()
+	info, err := client.ContainerInspect(utils.NewContextWithTimeout(3), id)
 	if err != nil {
 		log.DefFileLogger.WithFields(logrus.Fields{
 			"containerId": id,
+			"position":    utils.GetFileAndLine(),
 			"error":       err.Error(),
 		}).Warn("ContainerInspect failed")
+		handleContainerError(id, err)
 		return err
 	}
-	log.DefFileLogger.WithFields(logrus.Fields{
-		"containerId": id,
-	}).Debug("ContainerInspect success.")
+
 	// 从容器信息里获取必要字段
 	cinfo.Labels["id"] = info.ID
 	cinfo.Labels["created"] = info.Created
@@ -63,23 +72,28 @@ func StoreContainerInfoById(id string) error {
 	cinfo.Labels["name"] = info.Name
 	if info.HostConfig != nil {
 		if info.HostConfig.Privileged {
-			cinfo.Labels["hostconfig_privileged"] = "1"
+			cinfo.Labels["privileged"] = "1"
 		} else {
-			cinfo.Labels["hostconfig_privileged"] = "0"
+			cinfo.Labels["privileged"] = "0"
 		}
 	}
 	if info.Config != nil {
-		cinfo.Labels["config_hostname"] = info.Config.Hostname
+		cinfo.Labels["k8s_hostname"] = info.Config.Hostname
 		if info.Config.Labels != nil {
 			for k, v := range info.Config.Labels {
 				switch k {
-				case "annotation.io.kubernetes.container.restartCount",
-					"io.kubernetes.container.logpath",
-					"io.kubernetes.container.name",
-					"io.kubernetes.pod.name",
-					"io.kubernetes.pod.namespace",
-					"io.kubernetes.pod.uid":
-					cinfo.Labels[strings.Replace(k, ".", "_", -1)] = v
+				case "annotation.io.kubernetes.container.restartCount":
+					cinfo.Labels["container_restart_cnt"] = v
+				case "io.kubernetes.container.logpath":
+					cinfo.Labels["container_logpath"] = v
+				case "io.kubernetes.container.name":
+					cinfo.Labels["container_name"] = v
+				case "io.kubernetes.pod.name":
+					cinfo.Labels["pod_name"] = v
+				case "io.kubernetes.pod.namespace":
+					cinfo.Labels["pod_ns"] = v
+				case "io.kubernetes.pod.uid":
+					cinfo.Labels["pod_uid"] = v
 				}
 			}
 		}
@@ -92,18 +106,23 @@ func StoreContainerInfoById(id string) error {
 	ContainerInfos.Store(id, cinfo)
 	log.DefFileLogger.WithFields(logrus.Fields{
 		"containerId": id,
+		"position":    utils.GetFileAndLine(),
 		"labels":      cinfo.LablesStr,
 	}).Info("add container info by id ok")
 	return nil
 }
 
 func StorePidsByContainerId(id string) error {
-	body, err := DefaultDockerClient.ContainerTop(context.Background(), id, []string{})
+	client := NewDockerClient()
+	defer client.Close()
+	body, err := client.ContainerTop(utils.NewContextWithTimeout(3), id, []string{})
 	if err != nil {
 		log.DefFileLogger.WithFields(logrus.Fields{
 			"containerId": id,
+			"position":    utils.GetFileAndLine(),
 			"error":       err.Error(),
 		}).Warn("ContainerTop failed")
+		handleContainerError(id, err)
 		return err
 	}
 	// 记录容器内进程数量
@@ -115,6 +134,7 @@ func StorePidsByContainerId(id string) error {
 		log.DefFileLogger.WithFields(logrus.Fields{
 			"containerId": id,
 			"pid":         pid,
+			"position":    utils.GetFileAndLine(),
 		}).Debug("will add pid from container")
 		v, ok := PidsMonitor.Load(pid)
 		if ok {
@@ -123,6 +143,7 @@ func StorePidsByContainerId(id string) error {
 				log.DefFileLogger.WithFields(logrus.Fields{
 					"containerId": id,
 					"pid":         pid,
+					"position":    utils.GetFileAndLine(),
 				}).Info("update pid ok")
 				procpid.MoniPidCpu(pid)
 			}
@@ -131,6 +152,7 @@ func StorePidsByContainerId(id string) error {
 			log.DefFileLogger.WithFields(logrus.Fields{
 				"containerId": id,
 				"pid":         pid,
+				"position":    utils.GetFileAndLine(),
 			}).Info("add pid ok")
 			procpid.MoniPidCpu(pid)
 		}
@@ -161,34 +183,35 @@ func checkPids() {
 				StorePidsByContainerId(key.(string))
 				return true
 			})
-			time.Sleep(time.Second)
+			time.Sleep(3 * time.Second)
 		}
 	}()
 }
 
 func StoreContainerInfoAndPid() error {
-	// 获取所有容器列表
-	containers, err := DefaultDockerClient.ContainerList(context.Background(), types.ContainerListOptions{})
-	if err != nil {
-		log.DefFileLogger.WithFields(logrus.Fields{
-			"dockerclient": *DefaultDockerClient,
-			"error":        err.Error(),
-		}).Warn("get container list failed")
-		return err
-	}
-	// 容器列表只获取一次,没必要并发
-	// 获取容器信息及PID列表
-	for _, container := range containers {
-		err := StoreContainerInfoById(container.ID)
-		if err != nil {
-			continue
-		}
-		err = StorePidsByContainerId(container.ID)
-		if err != nil {
-			continue
-		}
-	}
 	// 定时检测PID是否还存活
 	checkPids()
+
+	for {
+		// 获取所有容器列表
+		client := NewDockerClient()
+		containers, err := client.ContainerList(utils.NewContextWithTimeout(3), types.ContainerListOptions{})
+		if err != nil {
+			client.Close()
+			log.DefFileLogger.WithFields(logrus.Fields{
+				"position": utils.GetFileAndLine(),
+				"error":    err.Error(),
+			}).Warn("get container list failed")
+			time.Sleep(5 * time.Second)
+			continue
+		}
+		client.Close()
+		// 获取容器信息及PID列表
+		for _, container := range containers {
+			StoreContainerInfoById(container.ID)
+			StorePidsByContainerId(container.ID)
+		}
+		time.Sleep(5 * time.Second)
+	}
 	return nil
 }

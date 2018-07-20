@@ -8,8 +8,18 @@ import (
 	"github.com/wlibo666/dockerprocmetrics/metrics"
 )
 
+const (
+	CTL_URL_MTERICS = "/metrics"
+	CTL_URL_HEALTHZ = "/healthz"
+)
+
 func Metrics(c *gin.Context) {
 	args := make(map[string]string)
 	args[metrics.CONTAINER_STATE_ARG_REMOTEADDR] = strings.Split(c.Request.RemoteAddr, ":")[0]
-	c.String(http.StatusOK, metrics.GetAllMetricsData(args))
+
+	metrics.WriteAllMetricsData(c.Writer, args)
+}
+
+func Health(c *gin.Context) {
+	c.String(http.StatusOK, "ok")
 }

@@ -2,16 +2,16 @@ package container
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/events"
-	//"github.com/docker/docker/client"
-	"github.com/Sirupsen/logrus"
 	"github.com/docker/docker/api/types/filters"
 	log "github.com/wlibo666/common-lib/logrus"
-	"golangsrc/fmt"
+	"github.com/wlibo666/dockerprocmetrics/utils"
 )
 
 type EventData struct {
@@ -47,7 +47,8 @@ func cleanEventData() {
 
 func handleContainerStartMsg(msg events.Message) error {
 	log.DefFileLogger.WithFields(logrus.Fields{
-		"msg": msg,
+		"position": utils.GetFileAndLine(),
+		"msg":      msg,
 	}).Info("receive start msg from docker daemon")
 
 	StoreContainerInfoById(msg.ID)
@@ -66,14 +67,15 @@ func handleContainerStartMsg(msg events.Message) error {
 
 func handleContainerDieMsg(msg events.Message) error {
 	log.DefFileLogger.WithFields(logrus.Fields{
-		"msg": msg,
+		"position": utils.GetFileAndLine(),
+		"msg":      msg,
 	}).Info("receive die msg from docker daemon")
 	DelContainerInfoById(msg.ID)
 
 	// 生成容器结束事件
 	ev := &EventData{
-		Data: fmt.Sprintf("{status=\"die\",container_id=\"%s\",image_id=\"%s\",type=\"container\",exit_code=\"%s\"} %d",
-			msg.ID, msg.From, msg.Actor.Attributes["exitCode"], CONTAINER_STATE_DIE),
+		Data: fmt.Sprintf("{status=\"die\",container_id=\"%s\",image_id=\"%s\",type=\"container\"} %s",
+			msg.ID, msg.From, msg.Actor.Attributes["exitCode"]),
 		Time:    time.Now().Unix(),
 		Accessd: &sync.Map{},
 	}
@@ -87,8 +89,8 @@ func HandleDockerEvent() {
 
 	msgChan := make(<-chan events.Message, 100)
 	errChan := make(<-chan error, 100)
-
-	msgChan, errChan = DefaultDockerClient.Events(context.Background(), types.EventsOptions{Filters: filter})
+	client := NewDockerClient()
+	msgChan, errChan = client.Events(context.Background(), types.EventsOptions{Filters: filter})
 	for {
 		select {
 		case msg := <-msgChan:
@@ -102,10 +104,13 @@ func HandleDockerEvent() {
 		case err := <-errChan:
 			if err != nil {
 				log.DefFileLogger.WithFields(logrus.Fields{
-					"error": err,
-				}).Info("receive event error from docker daemon")
+					"position": utils.GetFileAndLine(),
+					"error":    err,
+				}).Info("receive EOF error from docker daemon,will reregister")
+				client.Close()
+				client = NewDockerClient()
+				msgChan, errChan = client.Events(context.Background(), types.EventsOptions{Filters: filter})
 				time.Sleep(time.Second)
-				msgChan, errChan = DefaultDockerClient.Events(context.Background(), types.EventsOptions{Filters: filter})
 			}
 		}
 	}
