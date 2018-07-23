@@ -1,0 +1,56 @@
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: dpm
+  annotations:
+    user: wangchunyan
+    purpose: monitor
+  labels:
+    purpose: monitor
+    program: dpm
+  namespace: docker-monitor
+spec:
+  template:
+    metadata:
+      labels:
+        purpose: monitor
+        program: dpm
+    spec:
+      containers:
+      - name: dpm
+        image: wangchunyan/centos:dpm0.3
+        volumeMounts:
+        - name: dpmconfig
+          mountPath: /etc
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 3280
+            scheme: HTTP
+          periodSeconds: 5
+          timeoutSeconds: 2
+        ports:
+        - containerPort: 3280
+          hostPort: 3280
+          name: dpmport
+        volumeMounts:
+        - name: dpm-conf
+          mountPath: /etc/dpm
+        - name: hostproc
+          mountPath: /tmp/hostproc
+        - name: dockersock
+          mountPath: /tmp/run/docker.sock
+      hostNetwork: true
+      volumes:
+      - name: dpm-conf
+        configMap:
+          name: dpmconfig
+          items:
+          - key: metrics.json
+            path: metrics.json
+      - name: hostproc
+        hostPath:
+          path: /proc
+      - name: dockersock
+        hostPath:
+          path: /var/run/docker.sock

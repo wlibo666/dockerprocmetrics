@@ -1,7 +1,8 @@
 {
   "docker":{
     "daemonSock":"unix:///var/run/docker.sock",
-    "apiVersion":"1.37"
+    "apiVersion":"1.37",
+    "procDir": "/proc"
   },
   "monitor":{
     "items":["cpu","memory"],

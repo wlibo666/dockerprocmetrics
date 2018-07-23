@@ -20,6 +20,7 @@ var (
 type DockerConfig struct {
 	DaemonSock string `json:"daemonSock"`
 	ApiVersion string `json:"apiVersion"`
+	ProcDir    string `json:"procDir"`
 }
 
 type MonitorConfig struct {

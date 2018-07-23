@@ -14,12 +14,13 @@ import (
 	"github.com/wlibo666/dockerprocmetrics/metrics"
 	"github.com/wlibo666/dockerprocmetrics/register/consul"
 	"github.com/wlibo666/dockerprocmetrics/utils"
+	"github.com/wlibo666/procinfo"
 )
 
 var (
-	logFile  = flag.String("log.file", "/var/log/dockerprocmetrics.log", "-log.file /var/log/dockerprocmetrics.log")
+	logFile  = flag.String("log.file", "/var/log/dpm.log", "-log.file /var/log/dpm.log")
 	logCnt   = flag.Int("log.count", 3, "-log.count 3")
-	confFile = flag.String("config.file", "./conf/metrics.json", "-config.file ../conf/metrics.json")
+	confFile = flag.String("config.file", "/etc/dpm/metrics.json", "-config.file ../conf/metrics.json")
 )
 
 var (
@@ -44,6 +45,9 @@ func prepare() {
 			"error":       err.Error(),
 		}).Error("LoadConfig failed,will exit with code 2")
 		utils.ExitWaitDef(2)
+	}
+	if config.GMertricConfig.Docker.ProcDir != "" {
+		procinfo.SetProcBaseDir(config.GMertricConfig.Docker.ProcDir)
 	}
 }
 

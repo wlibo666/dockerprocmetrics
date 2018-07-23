@@ -1,0 +1,14 @@
+[Unit]
+Description=Monitor processes of docker and generate metrics data for prometheus
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/dockerprocmetrics
+SuccessExitStatus=0
+
+LimitNOFILE=10240
+LimitNPROC=10240
+LimitCORE=infinity
+
+[Install]
+WantedBy=multi-user.target
