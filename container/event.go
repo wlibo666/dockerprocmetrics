@@ -52,12 +52,18 @@ func handleContainerStartMsg(msg events.Message) error {
 	}).Info("receive start msg from docker daemon")
 
 	StoreContainerInfoById(msg.ID)
+	info, ok := ContainerInfos.Load(msg.ID)
 	// 生成容器启动事件
 	ev := &EventData{
-		Data: fmt.Sprintf("{status=\"start\",container_id=\"%s\",image_id=\"%s\",type=\"container\"} %d",
-			msg.ID, msg.From, CONTAINER_STATE_START),
 		Time:    time.Now().Unix(),
 		Accessd: &sync.Map{},
+	}
+	if !ok {
+		ev.Data = fmt.Sprintf("{status=\"start\",container_id=\"%s\",image_id=\"%s\",type=\"container\"} %d",
+			msg.ID, msg.From, CONTAINER_STATE_START)
+	} else {
+		ev.Data = fmt.Sprintf("{status=\"start\",%s,type=\"container\"} %d",
+			info.(*ContainerInfo).LablesStr, CONTAINER_STATE_START)
 	}
 	EventDatas.Store(msg.TimeNano, ev)
 
@@ -70,15 +76,22 @@ func handleContainerDieMsg(msg events.Message) error {
 		"position": utils.GetFileAndLine(),
 		"msg":      msg,
 	}).Info("receive die msg from docker daemon")
-	DelContainerInfoById(msg.ID)
 
 	// 生成容器结束事件
 	ev := &EventData{
-		Data: fmt.Sprintf("{status=\"die\",container_id=\"%s\",image_id=\"%s\",type=\"container\"} %s",
-			msg.ID, msg.From, msg.Actor.Attributes["exitCode"]),
 		Time:    time.Now().Unix(),
 		Accessd: &sync.Map{},
 	}
+	info, ok := ContainerInfos.Load(msg.ID)
+	if !ok {
+		ev.Data = fmt.Sprintf("{status=\"die\",container_id=\"%s\",image_id=\"%s\",type=\"container\"} %s",
+			msg.ID, msg.From, msg.Actor.Attributes["exitCode"])
+	} else {
+		ev.Data = fmt.Sprintf("{status=\"die\",%s,type=\"container\"} %s",
+			info.(*ContainerInfo).LablesStr, msg.Actor.Attributes["exitCode"])
+	}
+
+	DelContainerInfoById(msg.ID)
 	EventDatas.Store(msg.TimeNano, ev)
 	return nil
 }

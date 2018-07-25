@@ -132,8 +132,7 @@ func RunGinServer() error {
 	engine.GET(controller.CTL_URL_MTERICS, controller.Metrics)
 	engine.GET(controller.CTL_URL_HEALTHZ, controller.Health)
 	register()
-	engine.Run(utils.GenListenAddr(config.GMertricConfig.Listen.Addr, config.GMertricConfig.Listen.Port))
-	return nil
+	return engine.Run(utils.GenListenAddr(config.GMertricConfig.Listen.Addr, config.GMertricConfig.Listen.Port))
 }
 
 func main() {
@@ -151,7 +150,14 @@ func main() {
 		utils.ExitWaitDef(3)
 	}
 	// 启动web服务
-	RunGinServer()
+	err = RunGinServer()
+	if err != nil {
+		log.DefFileLogger.WithFields(logrus.Fields{
+			"position": utils.GetFileAndLine(),
+			"error":    err.Error(),
+		}).Error("RunGinServer failed,will exit with code 5")
+		utils.ExitWaitDef(5)
+	}
 
 	log.DefFileLogger.WithFields(logrus.Fields{
 		"position": utils.GetFileAndLine(),
