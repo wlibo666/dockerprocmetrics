@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
       - name: dpm
-        image: wangchunyan/centos:dpm1.0.1
+        image: wangchunyan/centos:dpm1.0.0
         volumeMounts:
         - name: dpmconfig
           mountPath: /etc
